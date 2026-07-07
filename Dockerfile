@@ -3,4 +3,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+RUN set -eux; \
+	mkdir -p ControlNet-v1-1-nightly/annotator/ckpts; \
+	curl -L --fail -o ControlNet-v1-1-nightly/annotator/ckpts/yolox_l.onnx "https://huggingface.co/yzd-v/DWPose/resolve/main/yolox_l.onnx?download=true"; \
+	curl -L --fail -o ControlNet-v1-1-nightly/annotator/ckpts/dw-ll_ucoco_384.onnx "https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx?download=true"
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}

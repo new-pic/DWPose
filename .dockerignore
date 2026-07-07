@@ -1,0 +1,7 @@
+.git/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.onnx
+ControlNet-v1-1-nightly/annotator/ckpts/*.onnx

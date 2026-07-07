@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+*.onnx
+ControlNet-v1-1-nightly/annotator/ckpts/*.onnx
