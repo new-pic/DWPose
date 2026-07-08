@@ -18,8 +18,24 @@ class Wholebody:
         self.session_det = ort.InferenceSession(path_or_bytes=str(onnx_det), providers=providers)
         self.session_pose = ort.InferenceSession(path_or_bytes=str(onnx_pose), providers=providers)
     
-    def __call__(self, oriImg):
+    def __call__(self, oriImg, min_height_ratio=0.0, min_height_px=0.0):
         det_result = inference_detector(self.session_det, oriImg)
+        
+        if len(det_result) > 0 and (min_height_ratio > 0.0 or min_height_px > 0.0):
+            h, w = oriImg.shape[:2]
+            filtered_dets = []
+            for box in det_result:
+                box_h = box[3] - box[1]
+                if min_height_px > 0.0 and box_h < min_height_px:
+                    continue
+                if min_height_ratio > 0.0 and (box_h / h) < min_height_ratio:
+                    continue
+                filtered_dets.append(box)
+            det_result = np.array(filtered_dets) if filtered_dets else np.empty((0, 4))
+
+        if len(det_result) == 0:
+            return np.empty((0, 133, 2)), np.empty((0, 133))
+
         keypoints, scores = inference_pose(self.session_pose, det_result, oriImg)
 
         keypoints_info = np.concatenate(

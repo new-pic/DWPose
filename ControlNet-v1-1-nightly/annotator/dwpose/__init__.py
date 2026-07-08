@@ -34,12 +34,14 @@ class DWposeDetector:
 
         self.pose_estimation = Wholebody()
 
-    def __call__(self, oriImg):
+    def __call__(self, oriImg, min_height_ratio=0.0, min_height_px=0.0):
         oriImg = oriImg.copy()
         H, W, C = oriImg.shape
         with torch.no_grad():
-            candidate, subset = self.pose_estimation(oriImg)
+            candidate, subset = self.pose_estimation(oriImg, min_height_ratio=min_height_ratio, min_height_px=min_height_px)
             nums, keys, locs = candidate.shape
+            if nums == 0:
+                return np.zeros(shape=(H, W, 3), dtype=np.uint8)
             candidate[..., 0] /= float(W)
             candidate[..., 1] /= float(H)
             body = candidate[:,:18].copy()

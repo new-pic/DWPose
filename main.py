@@ -44,7 +44,12 @@ def health():
 
 
 @app.post("/pose")
-async def pose(image: UploadFile | None = File(None), file: UploadFile | None = File(None)):
+async def pose(
+    image: UploadFile | None = File(None),
+    file: UploadFile | None = File(None),
+    min_height_ratio: float = 0.0,
+    min_height_px: float = 0.0,
+):
     upload = image or file
     if upload is None:
         raise HTTPException(status_code=400, detail="Image file is required")
@@ -55,7 +60,11 @@ async def pose(image: UploadFile | None = File(None), file: UploadFile | None = 
 
     try:
         input_image = decode_image(image_bytes)
-        keypoints, scores = get_pose_engine()(input_image)
+        keypoints, scores = get_pose_engine()(
+            input_image,
+            min_height_ratio=min_height_ratio,
+            min_height_px=min_height_px,
+        )
     except HTTPException:
         raise
     except Exception as exc:

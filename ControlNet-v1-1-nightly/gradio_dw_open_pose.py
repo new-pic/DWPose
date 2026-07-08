@@ -27,7 +27,7 @@ model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
 
-def process(det, pose, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+def process(det, pose, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, min_height_ratio, min_height_px):
     global preprocessor
     global dwprocessor
 
@@ -45,7 +45,7 @@ def process(det, pose, input_image, prompt, a_prompt, n_prompt, num_samples, ima
             detected_map = input_image.copy()
         else:
             if 'DW' in pose:
-                detected_map = dwprocessor(resize_image(input_image, detect_resolution))
+                detected_map = dwprocessor(resize_image(input_image, detect_resolution), min_height_ratio=min_height_ratio, min_height_px=min_height_px)
             else:
                 detected_map = preprocessor(resize_image(input_image, detect_resolution), hand_and_face='Full' in det)
             detected_map = HWC3(detected_map)
@@ -114,9 +114,11 @@ with block:
                 eta = gr.Slider(label="DDIM ETA", minimum=0.0, maximum=1.0, value=1.0, step=0.01)
                 a_prompt = gr.Textbox(label="Added Prompt", value='best quality')
                 n_prompt = gr.Textbox(label="Negative Prompt", value='lowres, bad anatomy, bad hands, cropped, worst quality')
+                min_height_ratio = gr.Slider(label="Min Height Ratio (relative to image height)", minimum=0.0, maximum=1.0, value=0.0, step=0.01)
+                min_height_px = gr.Slider(label="Min Height Pixels (absolute)", minimum=0, maximum=500, value=0, step=1)
         with gr.Column():
             result_gallery = gr.Gallery(label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
-    ips = [det, pose, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+    ips = [det, pose, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, min_height_ratio, min_height_px]
     run_button.click(fn=process, inputs=ips, outputs=[result_gallery])
 
 
