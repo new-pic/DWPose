@@ -7,12 +7,14 @@
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
-import torch
 import numpy as np
-from . import util
 from .wholebody import Wholebody
 
 def draw_pose(pose, H, W):
+    # These visualization dependencies are not needed by the FastAPI
+    # keypoint endpoint, so defer loading them until a pose image is drawn.
+    from . import util
+
     bodies = pose['bodies']
     faces = pose['faces']
     hands = pose['hands']
@@ -35,6 +37,8 @@ class DWposeDetector:
         self.pose_estimation = Wholebody()
 
     def __call__(self, oriImg, min_height_ratio=0.0, min_height_px=0.0):
+        import torch
+
         oriImg = oriImg.copy()
         H, W, C = oriImg.shape
         with torch.no_grad():
