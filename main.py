@@ -1,9 +1,12 @@
+import io
 from pathlib import Path
 import sys
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -12,6 +15,10 @@ if str(CONTROLNET_DIR) not in sys.path:
     sys.path.insert(0, str(CONTROLNET_DIR))
 
 from annotator.dwpose.wholebody import Wholebody
+
+
+# Register HEIF/HEIC support with Pillow before handling any uploaded images.
+register_heif_opener()
 
 
 app = FastAPI()
@@ -26,11 +33,19 @@ def get_pose_engine():
 
 
 def decode_image(image_bytes: bytes):
-    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    if image is None:
-        raise HTTPException(status_code=400, detail="Unable to decode image file")
-    return image
+    """Decode an uploaded image into the BGR array expected by DWPose."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            # iPhone photos commonly store the display orientation in EXIF data.
+            rgb_image = ImageOps.exif_transpose(image).convert("RGB")
+            rgb_array = np.asarray(rgb_image)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to decode image file: {exc}",
+        ) from exc
+
+    return cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
 
 
 @app.get("/")
