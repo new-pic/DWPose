@@ -1,9 +1,10 @@
 fastapi
 uvicorn[standard]
 python-multipart
+runpod>=1.7.0
 pillow
 pillow-heif
 numpy
 opencv-python-headless
-onnxruntime
+onnxruntime-gpu
 matplotlib
