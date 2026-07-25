@@ -7,29 +7,143 @@ Supported input fields:
   - minHeightPx / min_height_px: optional non-negative pixel threshold
 """
 
-import base64
-import binascii
-import logging
-import math
-from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+print("[BOOT] handler process started", flush=True)
 
-import numpy as np
-import runpod
-from fastapi import HTTPException
+import traceback
 
-from main import decode_image, get_pose_engine
+print("[BOOT] traceback import complete", flush=True)
+
+try:
+    print("[BOOT] importing Python standard library modules", flush=True)
+    import base64
+    import binascii
+    import logging
+    import math
+    import os
+    import sys
+    from pathlib import Path
+    from typing import Any
+    from urllib.error import HTTPError, URLError
+    from urllib.parse import urlparse
+    from urllib.request import Request, urlopen
+    print("[BOOT] Python standard library imports complete", flush=True)
+except BaseException:
+    print("[BOOT] Python standard library import failed", flush=True)
+    traceback.print_exc()
+    raise
+
+try:
+    print("[BOOT] importing numpy", flush=True)
+    import numpy as np
+    print(f"[BOOT] numpy import complete version={np.__version__}", flush=True)
+except BaseException:
+    print("[BOOT] numpy import failed", flush=True)
+    traceback.print_exc()
+    raise
+
+try:
+    print("[BOOT] importing runpod", flush=True)
+    import runpod
+    print(
+        f"[BOOT] runpod import complete version={getattr(runpod, '__version__', 'unknown')}",
+        flush=True,
+    )
+except BaseException:
+    print("[BOOT] runpod import failed", flush=True)
+    traceback.print_exc()
+    raise
+
+try:
+    print("[BOOT] importing FastAPI HTTPException", flush=True)
+    from fastapi import HTTPException
+    print("[BOOT] FastAPI import complete", flush=True)
+except BaseException:
+    print("[BOOT] FastAPI import failed", flush=True)
+    traceback.print_exc()
+    raise
+
+try:
+    print("[BOOT] importing onnxruntime", flush=True)
+    import onnxruntime as ort
+    print(
+        f"[BOOT] onnxruntime import complete version={ort.__version__}",
+        flush=True,
+    )
+except BaseException:
+    print("[BOOT] onnxruntime import failed", flush=True)
+    traceback.print_exc()
+    raise
+
+try:
+    print("[BOOT] importing DWPose application modules from /app/main.py", flush=True)
+    from main import decode_image, get_pose_engine
+    print("[BOOT] DWPose application imports complete", flush=True)
+except BaseException:
+    print("[BOOT] DWPose application import failed", flush=True)
+    traceback.print_exc()
+    raise
 
 
 LOGGER = logging.getLogger(__name__)
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 URL_TIMEOUT_SECONDS = 15
 
+APP_DIR = Path(__file__).resolve().parent
+CHECKPOINT_DIR = (
+    APP_DIR / "ControlNet-v1-1-nightly" / "annotator" / "ckpts"
+)
+DETECTOR_MODEL_PATH = (CHECKPOINT_DIR / "yolox_l.onnx").resolve()
+POSE_MODEL_PATH = (CHECKPOINT_DIR / "dw-ll_ucoco_384.onnx").resolve()
+
+
+def _log_model_file(label: str, model_path: Path) -> None:
+    exists = model_path.is_file()
+    size = model_path.stat().st_size if exists else 0
+    print(
+        f"[BOOT] {label} path={model_path} exists={exists} size_bytes={size}",
+        flush=True,
+    )
+    if not exists or size <= 0:
+        raise FileNotFoundError(
+            f"{label} ONNX model is missing or empty: {model_path}"
+        )
+
+
 # RunPod keeps this worker alive between jobs. Loading both ONNX models once at
 # worker startup avoids paying the model initialization cost for every request.
-POSE_ENGINE = get_pose_engine()
+try:
+    print(f"[BOOT] cwd={os.getcwd()} app_dir={APP_DIR}", flush=True)
+    print(
+        "[BOOT] RunPod environment "
+        f"queue_webhook_set={bool(os.environ.get('RUNPOD_WEBHOOK_GET_JOB'))} "
+        f"ping_webhook_set={bool(os.environ.get('RUNPOD_WEBHOOK_PING'))} "
+        f"pod_id_set={bool(os.environ.get('RUNPOD_POD_ID'))} "
+        f"local_test={'--test_input' in sys.argv}",
+        flush=True,
+    )
+    print(
+        f"[BOOT] available ONNX providers={ort.get_available_providers()}",
+        flush=True,
+    )
+    _log_model_file("detector_model", DETECTOR_MODEL_PATH)
+    _log_model_file("pose_model", POSE_MODEL_PATH)
+    print("[BOOT] loading DWPose ONNX sessions", flush=True)
+    POSE_ENGINE = get_pose_engine()
+    print(
+        "[BOOT] detector session providers="
+        f"{POSE_ENGINE.session_det.get_providers()}",
+        flush=True,
+    )
+    print(
+        "[BOOT] pose session providers="
+        f"{POSE_ENGINE.session_pose.get_providers()}",
+        flush=True,
+    )
+    print("[BOOT] DWPose ONNX sessions loaded", flush=True)
+except BaseException:
+    print("[BOOT] DWPose model initialization failed", flush=True)
+    traceback.print_exc()
+    raise
 
 
 class InputValidationError(ValueError):
@@ -220,4 +334,20 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    runpod.serverless.start({"handler": handler})
+    print("[BOOT] registering RunPod Queue handler", flush=True)
+    try:
+        runpod.serverless.start({"handler": handler})
+    except SystemExit as exc:
+        # The RunPod SDK intentionally exits with code 0 after --test_input
+        # local tests. Only non-zero exits are startup failures.
+        if exc.code not in (None, 0):
+            print(
+                f"[BOOT] runpod.serverless.start exited code={exc.code}",
+                flush=True,
+            )
+            traceback.print_exc()
+        raise
+    except BaseException:
+        print("[BOOT] runpod.serverless.start failed", flush=True)
+        traceback.print_exc()
+        raise
