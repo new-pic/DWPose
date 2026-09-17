@@ -7,6 +7,8 @@ import onnxruntime as ort
 from .onnxdet import inference_detector
 from .onnxpose import inference_pose
 
+MAX_POSE_PEOPLE = 4
+
 class Wholebody:
     def __init__(self):
         available_providers = ort.get_available_providers()
@@ -36,6 +38,13 @@ class Wholebody:
         if len(det_result) == 0:
             return np.empty((0, 133, 2)), np.empty((0, 133))
 
+        # Apparent body size is a proximity heuristic, not a depth measurement.
+        # Select before pose inference so we process at most four people.
+        box_sizes = np.maximum(det_result[:, 2:4] - det_result[:, :2], 0)
+        box_areas = box_sizes[:, 0] * box_sizes[:, 1]
+        nearest_indices = np.argsort(-box_areas, kind='stable')[:MAX_POSE_PEOPLE]
+        det_result = det_result[nearest_indices]
+
         keypoints, scores = inference_pose(self.session_pose, det_result, oriImg)
 
         keypoints_info = np.concatenate(
@@ -62,5 +71,4 @@ class Wholebody:
             ..., :2], keypoints_info[..., 2]
         
         return keypoints, scores
-
 
